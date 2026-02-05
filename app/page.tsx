@@ -1,10 +1,71 @@
-import ChatInput from '@/components/ChatInput';
+'use client';
 
-const dummyMessages = [
-  { role: 'assistant', content: 'Hello! I am your research agent. What would you like to know?' },
-];
+import { useState, FormEvent } from 'react';
+import ChatInput from '@/components/ChatInput';
+import ReactMarkdown from 'react-markdown';
+import { Loader2 } from 'lucide-react';
+
+// Define a simple type for our messages so TypeScript stops complaining
+type Message = {
+  role: 'user' | 'assistant';
+  content: string;
+  id: string; // We'll use timestamp as ID
+};
 
 export default function Home() {
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'assistant', content: 'Hello! I am your research agent. What would you like to know?', id: '1' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const userMessage: Message = {
+      role: 'user',
+      content: input,
+      id: Date.now().toString(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: [...messages, userMessage] }),
+      });
+
+      if (!response.ok) throw new Error('Network response was not ok');
+
+      const data = await response.json();
+
+      const aiMessage: Message = {
+        role: 'assistant',
+        content: data.text,
+        id: (Date.now() + 1).toString(),
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, something went wrong. Check the console.',
+        id: Date.now().toString()
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
       
@@ -14,16 +75,23 @@ export default function Home() {
             <span className="text-blue-600">🔍</span> DeepSearch Agent
           </h1>
           <div className="text-xs font-medium px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-            System: Online
+            Gemini Connected
           </div>
         </div>
       </header>
 
-      <section className="flex-1 overflow-y-auto w-full">
+      <section className="flex-1 overflow-y-auto w-full pb-4">
         <div className="max-w-3xl mx-auto p-4 space-y-6">
-          {dummyMessages.map((message, index) => (
+          
+          {messages.length === 1 && messages[0].role === 'assistant' && (
+            <div className="text-center mt-20 opacity-50">
+              <p className="text-lg">Start a conversation to see the agent in action.</p>
+            </div>
+          )}
+
+          {messages.map((message) => (
             <div
-              key={index}
+              key={message.id}
               className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {message.role === 'assistant' && (
@@ -39,9 +107,9 @@ export default function Home() {
                     : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-tl-sm'
                 }`}
               >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {message.content}
-                </p>
+                <div className="text-sm leading-relaxed prose dark:prose-invert max-w-none">
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </div>
               </div>
 
               {message.role === 'user' && (
@@ -51,10 +119,26 @@ export default function Home() {
               )}
             </div>
           ))}
+
+          {isLoading && (
+            <div className="flex gap-4 justify-start">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shrink-0">
+                AI
+              </div>
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
-      <ChatInput />
+      <form onSubmit={handleSubmit}>
+        <ChatInput 
+          value={input} 
+          handleChange={(e) => setInput(e.target.value)} 
+        />
+      </form>
 
     </main>
   );

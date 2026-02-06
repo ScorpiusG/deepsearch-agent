@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/chat/route.ts
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { DynamicTool } from '@langchain/core/tools';
 import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
@@ -15,6 +14,11 @@ export async function POST(req: Request) {
     const llm = new ChatGoogleGenerativeAI({
       model: 'gemini-2.5-flash',
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      // @ts-expect-error system
+      system: `You are a helpful research assistant. Answer the user's question based on the search results. 
+        CRITICAL: You MUST include citations (links) for every fact you mention.
+        When you reference information, embed the link directly in the text like this: [Source Name](URL).
+        The search results provided to you contain the links. Use them.`,
       temperature: 0.7,
     });
 
@@ -22,14 +26,11 @@ export async function POST(req: Request) {
     const searchTool = new DynamicTool({
       name: 'web_search',
       description: 'Searches the internet for real-time information.',
-      // @ts-expect-error
+      // @ts-expect-error params
       parameters: z.object({
         query: z.string().describe('The search query string'),
       }),
       func: async (input: any) => {
-        console.log('--- Tool Input Received ---');
-        console.log('Value:', JSON.stringify(input));
-
         let query = "";
 
         // Scenario A: Standard Zod naming { query: "..." }
@@ -47,8 +48,6 @@ export async function POST(req: Request) {
         else {
           throw new Error(`Could not determine query from input: ${JSON.stringify(input)}`);
         }
-
-        console.log(`🔍 Agent is searching for: ${query}`);
         
         const response = await fetch('https://api.tavily.com/search', {
           method: 'POST',
@@ -72,10 +71,9 @@ export async function POST(req: Request) {
         const data = await response.json();
         
         const results = data.results.map((item: any) => 
-          `Title: ${item.title}\nURL: ${item.url}\nContent: ${item.content}`
+          `**Source:** [${item.title}](${item.url})\n**Content:** ${item.content}`
         ).join('\n\n');
 
-        console.log('--- Search Results Retrieved ---');
         return results;
       },
     });
@@ -97,14 +95,11 @@ export async function POST(req: Request) {
       
       if (!response.tool_calls || response.tool_calls.length === 0) {
         finalAnswer = response.content as string;
-        console.log('--- Final AI Answer ---');
-        console.log(finalAnswer);
         break;
       }
 
       const toolMessages = await Promise.all(
         response.tool_calls.map(async (call: any) => {
-          // Pass call.args to the tool function
           const toolResult = await searchTool.func(call.args);
           return new ToolMessage(toolResult, call.id);
         })

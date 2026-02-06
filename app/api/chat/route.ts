@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { DynamicTool } from '@langchain/core/tools';
-import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage, ToolMessage, SystemMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -14,13 +14,21 @@ export async function POST(req: Request) {
     const llm = new ChatGoogleGenerativeAI({
       model: 'gemini-2.5-flash',
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      // @ts-expect-error system
-      system: `You are a helpful research assistant. Answer the user's question based on the search results. 
-        CRITICAL: You MUST include citations (links) for every fact you mention.
-        When you reference information, embed the link directly in the text like this: [Source Name](URL).
-        The search results provided to you contain the links. Use them.`,
       temperature: 0.7,
     });
+    const system = [
+      new SystemMessage({
+        content: [
+          {
+            type: 'text',
+            text: `You are a helpful research assistant. Answer the user's question based on the search results. 
+              CRITICAL: You MUST include citations (links) for every fact you mention in bulletpoints.
+              When you reference information, embed the link directly in the text like this: [Source Name](URL).
+              The search results provided to you contain the links. Use them.`
+          }
+        ]
+      })
+    ];
 
     // 2. Setup Tool
     const searchTool = new DynamicTool({
@@ -91,7 +99,7 @@ export async function POST(req: Request) {
     const MAX_STEPS = 5;
 
     for (let i = 0; i < MAX_STEPS; i++) {
-      const response = await modelWithTools.invoke(history);
+      const response = await modelWithTools.invoke([...system, ...history]);
       
       if (!response.tool_calls || response.tool_calls.length === 0) {
         finalAnswer = response.content as string;

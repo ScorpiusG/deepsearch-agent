@@ -110,7 +110,7 @@ export default function Home() {
                 <div className="text-sm leading-relaxed prose dark:prose-invert max-w-none">
                   <ReactMarkdown
                     components={{
-                      a: ({ node, ...props }) => (
+                      a: ({ ...props }) => (
                         <a 
                           {...props} 
                           target="_blank" 

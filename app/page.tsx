@@ -14,7 +14,7 @@ type Message = {
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hello! I am your research agent. What would you like to know?', id: '1' }
+    { role: 'assistant', content: 'Hello! I am your research assistant. What would you like to know?', id: '1' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -108,7 +108,19 @@ export default function Home() {
                 }`}
               >
                 <div className="text-sm leading-relaxed prose dark:prose-invert max-w-none">
-                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                  <ReactMarkdown
+                    components={{
+                      a: ({ node, ...props }) => (
+                        <a 
+                          {...props} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 underline hover:text-blue-400 transition-colors" 
+                        />
+                      )
+                    }}>
+                    {message.content}
+                  </ReactMarkdown>
                 </div>
               </div>
 
